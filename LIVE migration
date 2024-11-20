@@ -1,0 +1,109 @@
+Source Code and Commands
+
+1. Installing Required Packages
+
+Install virtualization tools on both source and destination machines:
+
+sudo apt update
+
+sudo apt install -y qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils nfs-kernel-server
+
+
+
+2. Setting Up Shared Storage
+
+On the Source Machine:
+1. Create and configure the shared directory:
+
+sudo mkdir -p /mnt/shared
+
+sudo chmod 777 /mnt/shared
+
+
+2. Install and configure the NFS server:
+
+sudo apt install -y nfs-kernel-server
+
+echo "/mnt/shared 192.168.60.217/24(rw,sync,no_subtree_check)" | sudo tee -a /etc/exports
+
+sudo exportfs -a
+
+sudo systemctl restart nfs-kernel-server
+
+
+
+On the Destination Machine:
+
+1. Install NFS client:
+
+sudo apt install -y nfs-common
+
+
+2. Mount the shared directory:
+
+sudo mkdir -p /mnt/shared
+
+sudo mount 192.168.60.41:/mnt/shared /mnt/shared
+echo "192.168.60.41:/mnt/shared /mnt/shared nfs defaults 0 0" | sudo tee -a /etc/fstab
+
+
+
+
+
+
+3. Setting Up SSH Key-Based Authentication
+
+1. Generate an SSH key pair on the source machine:
+
+ssh-keygen -t rsa
+
+
+2. Copy the public key to the destination machine:
+
+ssh-copy-id hanaan@192.168.60.217
+
+
+3. Test SSH connectivity:
+
+ssh hanaan@192.168.60.217
+
+
+
+4. Creating a Virtual Machine
+
+On the Source Machine:
+
+1. Create a disk image in the shared folder:
+
+qemu-img create -f qcow2 /mnt/shared/vol.qcow2 20G
+
+
+2. Install the virtual machine:
+
+virt-install --name ubuntu24.04 \
+             --ram 2048 \
+             --vcpus 2 \
+             --os-variant ubuntu22.04 \
+             --disk path=/mnt/shared/vol.qcow2,format=qcow2 \
+             --network network=default \
+             --graphics none \
+             --console pty,target_type=serial \
+             --cdrom /path/to/ubuntu-24.04.iso
+
+
+5. Starting Services
+
+Ensure required services are running on both machines:
+
+sudo systemctl enable --now libvirtd
+
+sudo systemctl enable --now nfs-kernel-server
+
+sudo systemctl enable --now ssh
+
+
+6. Live Migration
+
+Command to Migrate the VM:
+
+virsh migrate --live ubuntu24.04 qemu+ssh://hanaan@192.168.60.217/system \ --persistent --undefinesource --verbose --unsafe
